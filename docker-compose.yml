@@ -1,0 +1,26 @@
+web:
+  image: patriceckhart/docker-typo3-alpine
+  ports:
+    - '80:80'
+    - '22:22'
+  links:
+    - db:db
+  volumes:
+    - /data
+  environment:
+    - GITHUB_REPOSITORY=yourgithubrepository
+    - GITHUB_USERNAME=youtgithubusername
+    
+db:
+  image: mariadb:latest
+  expose:
+    - 3306
+  volumes:
+    - /var/lib/data
+  environment:
+    MYSQL_DATABASE: 'db'
+    MYSQL_USER: 'admin'
+    MYSQL_PASSWORD: 'pass'
+    MYSQL_ROOT_PASSWORD: 'root'
+  ports:
+    - '3306:3306'
