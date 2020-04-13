@@ -82,6 +82,10 @@ else
   done
 fi
 
+cp /update-typo3.sh /usr/local/bin/updatetypo3
+
+postfix start
+
 /usr/sbin/sshd
 echo "SSH has started."
 
