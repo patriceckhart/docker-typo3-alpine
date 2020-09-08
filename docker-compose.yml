@@ -1,16 +1,3 @@
-web:
-  image: patriceckhart/docker-typo3-alpine
-  ports:
-    - '80:80'
-    - '22:22'
-  links:
-    - db:db
-  volumes:
-    - /data
-  environment:
-    - GITHUB_REPOSITORY=yourgithubrepository
-    - GITHUB_USERNAME=youtgithubusername
-    
 db:
   image: mariadb:latest
   expose:
@@ -24,3 +11,18 @@ db:
     MYSQL_ROOT_PASSWORD: 'root'
   ports:
     - '3306:3306'
+  command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+
+web:
+  build: .
+  ports:
+    - '80'
+    - '22'
+  links:
+    - db:db
+  volumes:
+    - /data
+  environment:
+    - GITHUB_REPOSITORY=https://github.com/TYPO3/TYPO3.CMS.BaseDistribution.git
+    - GITHUB_USERNAME=yourgithubusername
+    - VIRTUAL_HOST=dev.typo3.local

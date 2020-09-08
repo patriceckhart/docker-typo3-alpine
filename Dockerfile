@@ -1,4 +1,4 @@
-FROM php:7.2-fpm-alpine3.10
+FROM php:7.4-fpm-alpine3.12
 
 MAINTAINER Patric Eckhart <mail@patriceckhart.com>
 
@@ -6,17 +6,19 @@ ENV DB_DATABASE databasename
 ENV DB_HOST databasehost
 ENV DB_USER databaseuser
 ENV DB_PASS databasepassword
-ENV BASE_URI /
+
+ENV ADMIN_PASSWORD noadmpwd
+ENV EDITOR_USERNAME noeditorusr
+ENV EDITOR_PASSWORD noeditorpwd
+ENV EDITOR_ROLE norole
+
+ENV GITHUB_TOKEN nogittoken
 
 RUN set -x \
 	&& apk update \
 	&& apk add bash \
-	&& apk add nano git nginx tar curl postfix mysql-client optipng freetype libjpeg-turbo-utils icu-dev openssh pwgen build-base && apk add --virtual libtool freetype-dev libpng-dev libjpeg-turbo-dev yaml-dev libssh2-dev \
-	&& docker-php-ext-configure gd \
-		--with-gd \
-		--with-freetype-dir=/usr/include/ \
-		--with-png-dir=/usr/include/ \
-		--with-jpeg-dir=/usr/include/ \
+	&& apk add nano git nginx tar zip curl postfix mysql-client optipng freetype libjpeg-turbo-utils icu-dev openssh pwgen build-base && apk add --virtual libtool freetype-dev libpng-dev libjpeg-turbo-dev yaml-dev libssh2-dev \
+	&& docker-php-ext-configure gd --with-freetype --with-jpeg \
 	&& docker-php-ext-install \
 		gd \
 		pdo \
@@ -28,7 +30,7 @@ RUN set -x \
 		json \
 		tokenizer \
 		mysqli \
-		zip \
+	&& docker-php-ext-configure zip --with-zip \
 	&& apk add --no-cache --virtual .deps imagemagick imagemagick-libs imagemagick-dev autoconf \
 	&& deluser www-data \
 	&& delgroup cdrw \
@@ -36,7 +38,8 @@ RUN set -x \
 	&& adduser -u 80 -G www-data -s /bin/bash -D www-data -h /data \
 	&& rm -Rf /home/www-data \
 	&& sed -i -e "s#listen = 9000#listen = /var/run/php-fpm.sock#" /usr/local/etc/php-fpm.d/zz-docker.conf \
-	&& sed -i -e "s#sendfile on#sendfile off#" /etc/nginx/nginx.conf \
+	&& sed -i -e "s#keepalive_timeout 65#keepalive_timeout 75#" /etc/nginx/nginx.conf \
+	&& sed -i -e "s#gzip_vary on#gzip_vary off#" /etc/nginx/nginx.conf \
 	&& sed -i -e "s#client_max_body_size 1m#client_max_body_size 1024m#" /etc/nginx/nginx.conf \
 	&& sed -i -e "s#listen = 127.0.0.1:9000#listen = /var/run/php-fpm.sock#" /usr/local/etc/php-fpm.d/www.conf \
 	&& echo "clear_env = no" >> /usr/local/etc/php-fpm.d/zz-docker.conf \
@@ -46,9 +49,16 @@ RUN set -x \
 	&& chown 80:80 -R /var/lib/nginx
 
 RUN pecl install imagick-beta && docker-php-ext-enable --ini-name 20-imagick.ini imagick
-RUN pecl install ssh2-1.1.2 && echo "extension=ssh2.so" > /usr/local/etc/php/conf.d/ext-ssh2.ini && docker-php-ext-enable --ini-name ext-ssh2.ini ssh2
 
-RUN curl -o /tmp/composer-setup.php https://getcomposer.org/installer && php /tmp/composer-setup.php --no-ansi --install-dir=/usr/local/bin --filename=composer --version=1.10.1 && rm -rf /tmp/composer-setup.php
+RUN cd /tmp \
+    && git clone https://git.php.net/repository/pecl/networking/ssh2.git \
+    && cd /tmp/ssh2/ \
+    && .travis/build.sh \
+    && docker-php-ext-enable ssh2
+
+RUN pecl install yaml && echo "extension=yaml.so" > /usr/local/etc/php/conf.d/ext-yaml.ini && docker-php-ext-enable --ini-name ext-yaml.ini yaml
+
+RUN curl -o /tmp/composer-setup.php https://getcomposer.org/installer && php /tmp/composer-setup.php --no-ansi --install-dir=/usr/local/bin --filename=composer --version=1.10.10 && rm -rf /tmp/composer-setup.php
 
 RUN echo 'StrictHostKeyChecking no' >> /etc/ssh/ssh_config
 
@@ -60,6 +70,14 @@ RUN mkdir -p /run/nginx
 
 COPY /config/sshd/github-keys.sh /github-keys.sh
 COPY /config/typo3/update-typo3.sh /update-typo3.sh
+COPY /config/typo3/update-typo3-silent.sh /update-typo3-silent.sh
+
+COPY /config/pipeline/pull-app.sh /pull-app.sh
+RUN chmod 755 /pull-app.sh
+
+RUN chmod 755 /update-typo3-silent.sh
+
+COPY /config/etc/motd /etc/motd
 
 EXPOSE 80 22
 

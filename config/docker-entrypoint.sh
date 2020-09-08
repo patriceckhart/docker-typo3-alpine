@@ -1,14 +1,15 @@
 #!/bin/bash
 set -ex
 
-DIR="/data/typo3"
+DIR="/data/typo3/Web"
+FILE=/data/typo3/composer.lock
 PHP="/php"
 
 if [ -f "$PHP" ]; then
   echo "PHP has already been configured."
 else
   echo "PHP Configuration ..."
-  echo "date.timezone=${PHP_TIMEZONE:-UTC}" > $PHP_INI_DIR/conf.d/date_timezone.ini
+  echo "date.timezone=${PHP_TIMEZONE:-Europe/Berlin}" > $PHP_INI_DIR/conf.d/date_timezone.ini
   echo "memory_limit=${PHP_MEMORY_LIMIT:-4096M}" > $PHP_INI_DIR/conf.d/memory_limit.ini
   echo "upload_max_filesize=${PHP_UPLOAD_MAX_FILESIZE:-1024M}" > $PHP_INI_DIR/conf.d/upload_max_filesize.ini
   echo "post_max_size=${PHP_UPLOAD_MAX_FILESIZE:-1024M}" > $PHP_INI_DIR/conf.d/post_max_size.ini
@@ -28,25 +29,80 @@ fi
 chmod 066 /var/run/php-fpm.sock
 chown www-data:www-data /var/run/php-fpm.sock
 
-if [ -d "$DIR" ]; then
-  
+if [ -f "$FILE" ]; then
+
+  if [ "$GITHUB_TOKEN" != "nogittoken" ]; then
+
+    composer config -g github-oauth.github.com $GITHUB_TOKEN
+
+  fi
+
   echo "TYPO3 CMS is already installed."
 else
+
+  composer clear-cache --no-interaction
+
   echo "Downloading TYPO3 CMS ..."
   mkdir -p /data/typo3
 
-  git clone $GITHUB_REPOSITORY /data/typo3
+  if [ "$GITHUB_TOKEN" == "nogittoken" ]; then
+
+    git clone $GITHUB_REPOSITORY /data/typo3
+
+  else
+
+    git clone https://$GITHUB_USERNAME:$GITHUB_TOKEN@github.com/$GITHUB_USERNAME/$GITHUB_REPOSITORY /data/typo3
+    composer config -g github-oauth.github.com $GITHUB_TOKEN
+  
+  fi
 
   echo "Installing TYPO3 CMS ..."
   chown -R www-data:www-data /data
-  chmod -R 775 /data
+  chmod -R 755 /data
   echo "Wait until composer update is finished!"
   cd /data/typo3 && composer update --no-interaction
+  cd /data/typo3/public && echo "a" >> FIRST_INSTALL
   chown -R www-data:www-data /data
   chmod -R 775 /data
+  # create FIRST_INSTALL
   echo "TYPO3 CMS installation completed."
 
+  echo "TYPO3 CMS must be installed manually."
+
 fi
+
+CRONDIR="/data/cron/"
+
+if [ -d "$CRONDIR" ]; then
+  
+  echo "Cron directories exist."
+
+else
+
+  echo "Create cron directories ..."
+
+  mkdir -p /data/cron
+  mkdir -p /data/cron/15min
+  mkdir -p /data/cron/hourly
+  mkdir -p /data/cron/daily
+  mkdir -p /data/cron/weekly
+  mkdir -p /data/cron/monthly
+
+  echo "Cron directories created."
+
+fi
+
+rm -rf /etc/periodic/15min
+rm -rf /etc/periodic/hourly
+rm -rf /etc/periodic/daily
+rm -rf /etc/periodic/weekly
+rm -rf /etc/periodic/monthly
+
+ln -s /data/cron/15min /etc/periodic/15min
+ln -s /data/cron/hourly /etc/periodic/hourly
+ln -s /data/cron/daily /etc/periodic/daily
+ln -s /data/cron/weekly /etc/periodic/weekly
+ln -s /data/cron/monthly /etc/periodic/monthly
 
 nginx
 echo "nginx has started."
@@ -83,14 +139,23 @@ else
 fi
 
 cp /update-typo3.sh /usr/local/bin/updatetypo3
+cp /update-typo3-silent.sh /usr/local/bin/updatetypo3silent
+
+cp /pull-app.sh /usr/local/bin/pullapp
+
+chown -Rf nginx:nginx /var/lib/nginx
 
 postfix start
 
 /usr/sbin/sshd
+
 echo "SSH has started."
 
 /usr/sbin/crond -fS
+
 echo "crond has started."
+
+echo "Container is up und running."
 
 tail -f /dev/null
 #exec "$@"

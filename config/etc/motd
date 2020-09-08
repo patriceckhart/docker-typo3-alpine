@@ -1,0 +1,7 @@
+
+Welcome to an awesome TYPO3 CMS docker image 
+based on Alpine linux with nginx + php-fpm 7.4 🚀, 
+packing everything needed for development and production usage of TYPO3 CMS.
+
+More infos: https://hub.docker.com/repository/docker/patriceckhart/docker-typo3-alpine
+
