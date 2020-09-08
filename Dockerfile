@@ -23,14 +23,12 @@ RUN set -x \
 		gd \
 		pdo \
 		pdo_mysql \
-		mbstring \
 		opcache \
 		intl \
 		exif \
 		json \
 		tokenizer \
 		mysqli \
-	&& docker-php-ext-configure zip --with-zip \
 	&& apk add --no-cache --virtual .deps imagemagick imagemagick-libs imagemagick-dev autoconf \
 	&& deluser www-data \
 	&& delgroup cdrw \
@@ -49,6 +47,8 @@ RUN set -x \
 	&& chown 80:80 -R /var/lib/nginx
 
 RUN pecl install imagick-beta && docker-php-ext-enable --ini-name 20-imagick.ini imagick
+
+RUN apk add libzip-dev && docker-php-ext-install zip
 
 RUN cd /tmp \
     && git clone https://git.php.net/repository/pecl/networking/ssh2.git \
